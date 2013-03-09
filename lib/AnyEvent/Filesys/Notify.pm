@@ -40,27 +40,35 @@ sub _process_events {
     # We are just ingoring the raw events for now... Mac::FSEvents
     # doesn't provide much information, so rescan ourselves
 
-    my $new_fs = _scan_fs( $self->dirs );
-    my @events = $self->_apply_filter( _diff_fs( $self->_old_fs, $new_fs ) );
+    my @events = @{ $self->_apply_filter( $self->_translate_events( \@raw_events ) ) };
 
-    $self->_old_fs($new_fs);
     $self->cb->(@events) if @events;
 
     return \@events;
 }
 
 sub _apply_filter {
-    my ( $self, @events ) = @_;
+    my ( $self, $events ) = @_;
 
     if ( ref $self->filter eq 'CODE' ) {
         my $cb = $self->filter;
-        @events = grep { $cb->( $_->path ) } @events;
+        @$events = grep { $cb->( $_->path ) } @$events;
     } elsif ( ref $self->filter eq 'Regexp' ) {
         my $re = $self->filter;
-        @events = grep { $_->path =~ $re } @events;
+        @$events = grep { $_->path =~ $re } @$events;
     }
 
-    return @events;
+    return $events;
+}
+
+sub _translate_events {
+    my ($self, $raw_events) = @_;
+
+    my $new_fs = _scan_fs( $self->dirs );
+    my @events = _diff_fs( $self->_old_fs, $new_fs );
+    $self->_old_fs($new_fs);
+
+    return \@events;
 }
 
 # Return a hash ref representing all the files and stats in @path.
